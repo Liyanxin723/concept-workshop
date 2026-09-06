@@ -63,6 +63,15 @@ AI（WorkBuddy + concept-learning-kit Skill）生成了全部初稿，以下是�
 
 > 说明：三个概念的选择与材料结构按课程要求设定；SKILL.md 中的流程设计参考了 Anthropic 官方 Skills 文档的命名与结构建议，但学习框架（学习目标/核心问题/自测题等）为个人设计。
 
+## 遇到的问题与最终解决方式（过程记录）
+
+1. **本机没有 `gh` CLI、git 无已存凭据**，无法直接创建远程仓库 → 采用 Fine-grained/Classic PAT 调用 GitHub API 创建仓库，再推送；
+2. **`platform.openai.com` 在本地网络无法访问（curl 超时）** → 将该引用替换为可直达验证的 Anthropic Messages API 文档，保证每条来源都可核查；
+3. **`git fetch` 后远程跟踪分支 `origin/main` 始终为空**（本地命令环境异常中断导致 ref 未写入）→ 诊断后改用 `git config branch.main.remote/merge` 手工配置上游跟踪，推送与同步恢复正常；
+4. **`raw.githubusercontent.com` 偶发超时** → 用 GitHub Contents API（`/repos/.../contents/...`）复核，确认 SKILL.md 等文件均已正确推送；
+5. **Token 安全**：推送命令中临时携带 Token，推送后立即将远程 URL 重置为不含凭据的干净地址；提交与文件中扫描确认无任何 Token/密钥残留，Token 用完即应从 GitHub 账户删除；
+6. **提交作者信息**：初版提交误用了本地占位邮箱，已修正为 GitHub 账号关联的 noreply 邮箱。
+
 ## 来源一览
 
 全部来源链接在各 HTML 文件末尾的"参考来源"章节，均已验证可访问（2026-09-06）。主要包括：
