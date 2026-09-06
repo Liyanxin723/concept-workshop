@@ -1,0 +1,55 @@
+# ===== 敏感信息与密钥（绝不提交）=====
+.env
+.env.*
+*.env
+!.env.example
+
+# 密钥 / 证书 / 凭据
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.pfx
+*credential*
+*secret*
+*token*
+id_rsa*
+.ssh/
+.gnupg/
+
+# 常见配置文件中的敏感内容
+secrets.json
+credentials.json
+auth.json
+*.local.json
+
+# ===== 工作与系统文件 =====
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+*.bak
+*.tmp
+
+# ===== 日志与缓存 =====
+*.log
+logs/
+.cache/
+__pycache__/
+node_modules/
+.venv/
+venv/
+
+# ===== AI 工具本地状态（不随仓库分享）=====
+.workbuddy/memory/
+.workbuddy/cache/
+.claude/settings.local.json
+
+# ===== 大文件与临时产物 =====
+*.zip
+*.7z
+*.mp4
+dist/
+build/

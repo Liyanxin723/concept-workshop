@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>概念学习：Agent（智能体）</title>
+<style>
+  :root { --ink:#1f2937; --muted:#6b7280; --accent:#b45309; --card:#fffbeb; --line:#fcd34d; --bg:#fffdf7; }
+  * { box-sizing: border-box; }
+  body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color: var(--ink); background: var(--bg); max-width: 860px; margin: 0 auto; padding: 32px 24px 80px; line-height: 1.75; }
+  h1 { font-size: 1.9em; border-bottom: 3px solid var(--line); padding-bottom: 12px; }
+  h2 { font-size: 1.35em; color: var(--accent); margin-top: 2em; border-left: 5px solid var(--line); padding-left: 10px; }
+  h3 { font-size: 1.1em; margin-top: 1.5em; }
+  .quote { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 20px; font-size: 1.05em; }
+  .muted { color: var(--muted); }
+  .tag { display: inline-block; background: var(--line); color:#78350f; border-radius: 999px; padding: 1px 12px; font-size: .8em; margin-left: 6px; vertical-align: middle; }
+  ol li, ul li { margin: 6px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+  th, td { border: 1px solid #e5d3a1; padding: 8px 12px; text-align: left; }
+  th { background: var(--card); }
+  .diagram { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin: 14px 0; text-align: center; }
+  .flow { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; font-weight: bold; }
+  .node { background:#fff; border: 2px solid var(--accent); border-radius: 10px; padding: 8px 14px; }
+  .arrow { color: var(--accent); font-size: 1.2em; }
+  details { background: var(--card); border: 1px dashed var(--line); border-radius: 8px; padding: 10px 16px; margin: 8px 0; }
+  .src small { color: var(--muted); display: block; }
+  .src { margin: 10px 0; }
+  code { background:#fef3c7; padding: 1px 6px; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<h1>Agent（智能体）<span class="tag">技术概念</span></h1>
+
+<!-- 1 一句话个人解释 -->
+<div class="quote">
+  <strong>一句话个人解释：</strong>Agent 是一个以大模型为"大脑"、能围绕目标自主感知环境、规划步骤、调用工具并根据结果不断调整行动，直到完成任务的系统。它和普通聊天机器人的本质区别是：<em>聊天机器人回答问题，Agent 办成事情</em>。
+</div>
+
+<!-- 2 学习目标 -->
+<h2>学习目标</h2>
+<ol>
+  <li>能用一句话向别人说清 Agent 和普通 LLM 应用（如问答机器人）的区别；</li>
+  <li>能画出 Agent 的基本循环：感知 → 规划 → 调用工具 → 观察结果 → 再决策；</li> 
+  <li>能举出一个具体场景，说明哪些环节该交给模型自主决策、哪些该用固定工作流；</li>
+  <li>能解释"工作流（workflow）"与"智能体（agent）"的分界标准。</li>
+</ol>
+
+<!-- 3 核心问题 -->
+<h2>核心问题</h2>
+<ul>
+  <li>Q1：为什么有了大模型还需要 Agent？（→ §5）</li>
+  <li>Q2：Agent 靠什么机制"自主"起来？（→ §5）</li>
+  <li>Q3：什么时候该用固定工作流，什么时候该用 Agent？（→ §6、§7）</li>
+  <li>Q4：Agent 和 Workflow、Chatbot 怎么区分？（→ §7）</li>
+</ul>
+
+<!-- 4 概念定义与边界 -->
+<h2>概念定义与边界</h2>
+<p><strong>是什么：</strong>Agent 是由 LLM 驱动、在运行时自主决定执行路径的系统。它拥有工具（如搜索、代码执行、文件读写），围绕一个目标迭代"行动—观察—再行动"，直到任务完成。Anthropic 在《Building effective agents》中给出的分界是：如果应用程序只是<strong>预先编排好代码路径</strong>调用模型，那是工作流；如果<strong>由模型自己动态决定过程和工具使用</strong>，那才是 Agent。</p>
+<p><strong>不是什么：</strong></p>
+<ul>
+  <li>不是"更大的模型"——Agent 是一种系统架构，不等于模型本身；</li>
+  <li>不是任何带工具调用的程序——路径由写死的代码决定的是工作流；</li>
+  <li>不是万能自动机——它依赖明确的任务目标和足够的信息，目标含糊时表现会显著下降。</li>
+</ul>
+
+<!-- 5 核心机制 -->
+<h2>核心机制或组成</h2>
+<p>我的理解：Agent = <strong>模型（大脑）+ 工具（手脚）+ 记忆/上下文（工作台）+ 循环（工作方式）</strong>。四者的协作方式如下：</p>
+<div class="diagram">
+  <div class="flow">
+    <span class="node">🎯 目标</span><span class="arrow">→</span>
+    <span class="node">🧠 LLM 规划</span><span class="arrow">→</span>
+    <span class="node">🔧 调用工具</span><span class="arrow">→</span>
+    <span class="node">👀 观察结果</span><span class="arrow">↺ 反馈回 LLM 再决策</span>
+  </div>
+  <p class="muted" style="margin:8px 0 0;">Agent 的基本循环：LLM 决定下一步 → 执行 → 把结果放回上下文 → 再决策，直到任务完成</p>
+</div>
+<ol>
+  <li><strong>模型即决策者</strong>：LLM 根据当前上下文（目标、已有结果、工具说明）判断下一步做什么，这是"自主性"的来源；</li>
+  <li><strong>工具调用（Tool Use）</strong>：Agent 通过结构化接口调用搜索、代码执行、API 等外部能力，工具的描述质量直接决定 Agent 用得好不好；</li>
+  <li><strong>上下文管理</strong>：每一步的观察结果都要写回上下文，供下一轮决策使用——这正是"大模型的上下文"概念发挥作用的地方（见 <a href="llm-context.html">llm-context.html</a>）；</li>
+  <li><strong>迭代循环与终止条件</strong>：循环持续到任务完成或触发停止条件（步数上限、检查点、人工确认），防止无限执行；</li>
+  <li><strong>编排层（Orchestrator）</strong>：复杂任务可拆给多个子 Agent 协作，由编排者分配、汇总。</li>
+</ol>
+
+<!-- 6 应用案例 -->
+<h2>应用案例：自动整理一周的会议记录</h2>
+<p><strong>场景</strong>：我想让 Agent 把散落在邮箱和聊天工具里的一周会议记录整理成纪要。</p>
+<p><strong>走一遍流程</strong>：</p>
+<ol>
+  <li>我给出目标："找出本周 5 场会议的记录，各提炼 3 条要点和待办事项，汇总成一个文档"；</li>
+  <li>Agent 的 LLM 规划：先搜索邮箱 → 调用邮件工具拿到 5 封邮件 → 发现第 4 场会议的记录在聊天工具里，再调用聊天工具获取；</li>
+  <li>对每份记录调用摘要能力提炼要点，把中间结果写回上下文；</li>
+  <li>发现第 4 场的记录里没有明确的待办事项，Agent 根据讨论内容自行归纳，并标注"待办为推断，请确认"；</li>
+  <li>调用文档工具生成汇总，附上来源索引，完成任务并汇报。</li>
+</ol>
+<p><strong>概念如何发挥作用</strong>：第 2、4 步里"路径是模型临场决定的"（记录可能在哪个系统、缺数据时怎么办），这就是 Agent 区别于固定脚本的关键。如果所有步骤都能预先写死，就不需要 Agent，用工作流更便宜、更可控。</p>
+
+<!-- 7 易混淆问题与使用边界 -->
+<h2>易混淆问题与使用边界</h2>
+<table>
+  <tr><th>易混淆对</th><th>区别标准</th></tr>
+  <tr><td>Agent vs. Workflow（工作流）</td><td>Workflow 用代码预先编排 LLM 的调用路径，可预测、成本低；Agent 让模型运行时自己决定路径，灵活但成本与不确定性更高。能用 Workflow 解决就不要上 Agent。</td></tr>
+  <tr><td>Agent vs. Chatbot（聊天机器人）</td><td>Chatbot 的产出是"回答"，一轮一答；Agent 的产出是"完成的事"，包含多轮行动与工具调用。</td></tr>
+  <tr><td>Agent vs. 多 Agent 系统</td><td>单 Agent 是一个决策循环；多 Agent 是多个循环协作（分工/评审/接力），复杂度上升，只在单 Agent 明显不够时才引入。</td></tr>
+</table>
+<p><strong>使用边界（我的判断标准）</strong>：</p>
+<ul>
+  <li>任务目标明确、可验证（有清晰的"完成"标准）时才适合 Agent；</li>
+  <li>环境可被工具访问（文件、API、浏览器），否则 Agent 无"手脚"可用；</li>
+  <li>允许一定成本与延迟，且有止损机制（步数上限、人工审批、沙箱权限）；</li>
+  <li>高风险操作（发邮件、付款、删数据）必须设置人工确认检查点。</li>
+</ul>
+
+<!-- 8 自测题 -->
+<h2>自测题</h2>
+<details open><summary><strong>1.（辨析）</strong>"一个会调用搜索工具的 LLM 应用一定是 Agent"——对吗？</summary>
+要点提示：从"路径由谁决定"入手：写死代码决定调用时机 vs. 模型运行时自主决定。</details>
+<details open><summary><strong>2.（简答）</strong>为什么说"工具描述的质量直接决定 Agent 表现"？</summary>
+要点提示：模型只能依据工具的说明来决定何时用、怎么用；说明含糊会引发错误选择。</details>
+<details open><summary><strong>3.（简答）</strong>设计一个客服 Agent，哪些步骤该用固定工作流，哪一步才值得用 Agent？</summary>
+要点提示：身份核验、工单分类等固定环节用工作流；需要跨系统查证据、临场决策的处理环节才用 Agent。</details>
+<details open><summary><strong>4.（开放）</strong>给 Agent 加"步数上限"和"人工确认"分别防住了什么风险？</summary>
+要点提示：无限循环与成本失控；高风险外部动作（发消息/删数据）不可逆。</details>
+
+<!-- 9 参考来源 -->
+<h2>参考来源</h2>
+<div class="src">
+  <a href="https://www.anthropic.com/research/building-effective-agents" target="_blank">Anthropic — Building Effective Agents（2024）</a>
+  <small>支撑论断：Workflow 与 Agent 的分界标准（§4、§7）；"从简单开始"的工程原则（§7）。</small>
+</div>
+<div class="src">
+  <a href="https://lilianweng.github.io/posts/2023-06-23-agent/" target="_blank">Lilian Weng — LLM Powered Autonomous Agents（2023）</a>
+  <small>支撑论断：Agent = 规划 + 记忆 + 工具使用的组成框架（§5）。</small>
+</div>
+<div class="src">
+  <a href="https://www.ibm.com/think/topics/ai-agents" target="_blank">IBM — What are AI Agents?</a>
+  <small>支撑论断：Agent 的感知—决策—行动循环描述（§5）。</small>
+</div>
+<div class="src">
+  <a href="https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf" target="_blank">OpenAI — A Practical Guide to Building Agents（2025，PDF）</a>
+  <small>支撑论断：何时该用/不该用 Agent 的判断标准（§7 使用边界）。</small>
+</div>
+
+<p class="muted" style="margin-top:3em; border-top:1px solid var(--line); padding-top:12px;">
+  本页由 WorkBuddy 项目级 Skill「concept-learning-kit」生成初稿，经本人逐节核查来源、改写个人解释后定稿。生成时间：2026-09-06。
+</p>
+</body>
+</html>

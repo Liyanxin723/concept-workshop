@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>概念学习：Skill（智能体技能）</title>
+<style>
+  :root { --ink:#1f2937; --muted:#6b7280; --accent:#047857; --card:#ecfdf5; --line:#6ee7b7; --bg:#f7fdfa; }
+  * { box-sizing: border-box; }
+  body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color: var(--ink); background: var(--bg); max-width: 860px; margin: 0 auto; padding: 32px 24px 80px; line-height: 1.75; }
+  h1 { font-size: 1.9em; border-bottom: 3px solid var(--line); padding-bottom: 12px; }
+  h2 { font-size: 1.35em; color: var(--accent); margin-top: 2em; border-left: 5px solid var(--line); padding-left: 10px; }
+  .quote { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 20px; font-size: 1.05em; }
+  .muted { color: var(--muted); }
+  .tag { display: inline-block; background: var(--line); color:#064e3b; border-radius: 999px; padding: 1px 12px; font-size: .8em; margin-left: 6px; vertical-align: middle; }
+  ol li, ul li { margin: 6px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+  th, td { border: 1px solid #a7f3d0; padding: 8px 12px; text-align: left; }
+  th { background: var(--card); }
+  pre { background:#064e3b; color:#d1fae5; border-radius: 10px; padding: 14px 18px; overflow-x: auto; font-size: .88em; line-height: 1.6; }
+  .diagram { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin: 14px 0; text-align: center; }
+  details { background: var(--card); border: 1px dashed var(--line); border-radius: 8px; padding: 10px 16px; margin: 8px 0; }
+  .src small { color: var(--muted); display: block; }
+  .src { margin: 10px 0; }
+  code { background:#d1fae5; padding: 1px 6px; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<h1>Skill（智能体技能）<span class="tag">技术概念</span></h1>
+
+<!-- 1 一句话个人解释 -->
+<div class="quote">
+  <strong>一句话个人解释：</strong>Skill 是一份（或一套）写给 Agent 看的"作业指导书"：用一个带说明书的文件夹（核心是 SKILL.md），把某类任务的最佳做法、步骤和配套资源存下来，Agent 在遇到匹配任务时按需加载。它解决的问题是——Agent 很聪明但不了解<strong>你</strong>的流程，Skill 把"你试出来的正确做法"变成可复用的知识。
+</div>
+
+<!-- 2 学习目标 -->
+<h2>学习目标</h2>
+<ol>
+  <li>能说出 SKILL.md 的基本结构（YAML 元数据 + 正文指令）及元数据的作用；</li>
+  <li>能解释"渐进式披露"：为什么 Skill 正文平时不占上下文、被用到才加载；</li>
+  <li>能区分 Skill 与 MCP、与工具（tool）的分工；</li>
+  <li>能动手写一个合格的项目级 Skill（本仓库的 concept-learning-kit 就是范例）。</li>
+</ol>
+
+<!-- 3 核心问题 -->
+<h2>核心问题</h2>
+<ul>
+  <li>Q1：Agent 明明会写代码，为什么还需要 Skill？（→ §4）</li>
+  <li>Q2：Skill 是怎么被 Agent"发现并使用"的？（→ §5）</li>
+  <li>Q3：Skill 和 MCP、普通工具调用有什么区别？（→ §7）</li>
+  <li>Q4：什么样的知识适合沉淀成 Skill？（→ §7 使用边界）</li>
+</ul>
+
+<!-- 4 概念定义与边界 -->
+<h2>概念定义与边界</h2>
+<p><strong>是什么：</strong>Skill 是一种给 Agent 扩展能力的轻量机制：一个文件夹，里面有带 YAML 元数据（<code>name</code>、<code>description</code>）的 SKILL.md，可选再附脚本、模板等资源文件。Anthropic 的定义是：Skill 文件夹告知 Agent <em>如何完成某类任务</em>——通常是流程知识而非纯代码能力。Agent 启动时只读取所有 Skill 的 name 和 description（很小）；当用户任务匹配某个 description 时，才加载该 Skill 的完整指令。这叫<strong>渐进式披露（progressive disclosure）</strong>。</p>
+<p><strong>不是什么：</strong></p>
+<ul>
+  <li>不是插件或程序——Skill 的主体是自然语言指令（可附脚本），它"教"Agent 做事，而不是替 Agent 做事；</li>
+  <li>不是 API 连接器——给 Agent 接入外部系统的能力属于 MCP（见 §7）；</li>
+  <li>不是一次性提示词——Skill 是可复用、可分享、面向一类任务的；只服务单一对话的一次性指令不需要写成 Skill。</li>
+</ul>
+
+<!-- 5 核心机制 -->
+<h2>核心机制或组成</h2>
+<div class="diagram">
+  <div class="flow" style="display:flex; flex-wrap:wrap; gap:8px; justify-content:center; align-items:center; font-weight:bold;">
+    <span style="background:#fff;border:2px solid var(--accent);border-radius:10px;padding:8px 14px;">📦 Skill 文件夹<br><small>SKILL.md + 可选资源</small></span>
+    <span style="color:var(--accent);font-size:1.2em;">→</span>
+    <span style="background:#fff;border:2px solid var(--accent);border-radius:10px;padding:8px 14px;">🔍 启动时只读元数据<br><small>name + description（很省上下文）</small></span>
+    <span style="color:var(--accent);font-size:1.2em;">→</span>
+    <span style="background:#fff;border:2px solid var(--accent);border-radius:10px;padding:8px 14px;">🎯 任务匹配 description</span>
+    <span style="color:var(--accent);font-size:1.2em;">→</span>
+    <span style="background:#fff;border:2px solid var(--accent);border-radius:10px;padding:8px 14px;">📖 加载完整指令进上下文</span>
+  </div>
+  <p class="muted" style="margin:8px 0 0;">渐进式披露：平时几乎不占上下文，用到才加载——这是 Skill 与"巨型系统提示"的关键差异</p>
+</div>
+<ol>
+  <li><strong>SKILL.md = 元数据 + 指令正文</strong>：YAML 头部的 <code>name</code> 与 <code>description</code> 是 Agent"发现"Skill 的唯一线索，description 必须写清"什么任务该用它"；正文是操作步骤、格式要求、注意事项；</li>
+  <li><strong>可选的资源文件</strong>：脚本、模板、参考文档放在同一文件夹，正文里引用。脚本可以直接执行（确定性步骤交给代码），文档按需再读——避免一次性全塞进上下文；</li>
+  <li><strong>存放位置决定作用域</strong>：放在 <code>~/.workbuddy/skills/</code>（用户级，跨项目可用）或 <code>项目/.workbuddy/skills/</code>（项目级，随仓库分享给协作者）——本仓库的 <code>.workbuddy/skills/concept-learning-kit/</code> 就是项目级；</li>
+  <li><strong>Skill 是写给人核查的</strong>：指令本质是"我们验证过的做法"，Agent 执行它，但人可以打开 SKILL.md 直接审阅、修改、版本管理。</li>
+</ol>
+
+<!-- 6 应用案例 -->
+<h2>应用案例：本仓库的 concept-learning-kit</h2>
+<p><strong>场景</strong>：我每学一个新概念都要产出格式一致的学习资料（解释、机制、案例、辨析、自测、来源）。不写成 Skill 的话，每次都要在对话里重新描述一遍要求，容易遗漏、格式漂移。</p>
+<p><strong>走一遍流程</strong>：</p>
+<ol>
+  <li>我把要求写成 <code>.workbuddy/skills/concept-learning-kit/SKILL.md</code>：定义输入（概念名、深度）、九个固定章节、来源核查规则、自检清单；</li>
+  <li>在 WorkBuddy 里打开本仓库后，Agent 启动时读到该 Skill 的 description："接收任意新概念，生成结构化学习资料……"；</li>
+  <li>我对 Agent 说："用 concept-learning-kit 学习概念'检索增强生成（RAG）'"；</li>
+  <li>Agent 加载完整 SKILL.md，按九章节模板生成 <code>learning-materials/rag.html</code>，并按自检清单逐项核对后才交付；</li>
+  <li>下次学任何新概念，同一套流程直接复用，产出风格一致。</li>
+</ol>
+<p><strong>概念如何发挥作用</strong>：我的"学习流程知识"从对话记录沉淀成了仓库里可版本管理的文件——这正是 Skill 的价值：<strong>把人验证过的做事方法交给 Agent 复现</strong>。本次作业的 agent.html、llm-context.html、skill.html 三份材料，就是按它生成的。</p>
+
+<!-- 7 易混淆问题与使用边界 -->
+<h2>易混淆问题与使用边界</h2>
+<table>
+  <tr><th>易混淆对</th><th>区别标准</th></tr>
+  <tr><td>Skill vs. 提示词（prompt）</td><td>提示词服务于当下对话；Skill 是持久的、面向一类任务的知识资产，可版本管理与分享。写进 Skill 的应是"以后还会这么做"的流程。</td></tr>
+  <tr><td>Skill vs. MCP（连接器）</td><td>MCP 负责连接外部系统（给 Agent 新的"手脚"和数据源）；Skill 负责流程知识（教 Agent "怎么把事做好"）。二者常配合：Skill 指导调用哪些 MCP 工具。</td></tr>
+  <tr><td>Skill vs. 子 Agent / 工作流</td><td>Skill 不改变 Agent 架构，只是注入指令；需要隔离上下文或并行分工时，用子 Agent 或固定工作流。</td></tr>
+</table>
+<p><strong>使用边界（我的判断标准）</strong>：</p>
+<ul>
+  <li>适合沉淀：重复出现的多步流程、格式规范、易错点清单、领域约定；</li>
+  <li>不适合沉淀：一次性的具体问题、含敏感信息（密钥/隐私）的内容——后者绝不能写进 SKILL.md 或随仓库提交；</li>
+  <li>description 写不好，Skill 等于不存在：Agent 靠它判断是否加载，要明确到"能判断当前任务是否匹配"；</li>
+  <li>指令要可核查：Skill 里写"资料来源不得伪造"这类约束，比事后检查生成结果有效得多（本仓库 Skill 的"资料来源要求"一节就是为此设计的）。</li>
+</ul>
+
+<!-- 8 自测题 -->
+<h2>自测题</h2>
+<details open><summary><strong>1.（简答）</strong>为什么 Skill 启动时不加载全文、只读 name 和 description？这省了什么？</summary>
+要点提示：渐进式披露——上下文容量有限（见 llm-context.html），N 个 Skill 的全文常驻会挤占并稀释注意力。</details>
+<details open><summary><strong>2.（辨析）</strong>"让 Agent 能查数据库"该用 Skill 还是 MCP？"让 Agent 按我们团队的周报模板写周报"该用哪个？</summary>
+要点提示：能力接入用 MCP；流程/格式知识用 Skill。</details>
+<details open><summary><strong>3.（简答）</strong>一个 Skill "从不被触发"，最可能的原因是什么？怎么排查？</summary>
+要点提示：description 太含糊，Agent 无法把当前任务匹配上；排查法：对照任务描述重写 description。</details>
+<details open><summary><strong>4.（开放）</strong>为什么说 Skill 文件夹"适合放进 Git 仓库做版本管理"？放仓库里（项目级）和放用户目录（用户级）各适合什么场景？</summary>
+要点提示：SKILL.md 是纯文本、可 diff、可评审；项目级随仓库共享给团队，用户级服务个人跨项目习惯。</details>
+
+<!-- 9 参考来源 -->
+<h2>参考来源</h2>
+<div class="src">
+  <a href="https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills" target="_blank">Anthropic Engineering — Equipping agents for the real world with Agent Skills（2025）</a>
+  <small>支撑论断：Skill 的定义（教 Agent 如何完成任务的文件夹，§4）、渐进式披露机制（§5）、来源核查类约束的价值（§7）。</small>
+</div>
+<div class="src">
+  <a href="https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview" target="_blank">Anthropic Docs — Agent Skills Overview</a>
+  <small>支撑论断：SKILL.md 结构（YAML 元数据 + 正文）、可选脚本与资源文件（§5.1、§5.2）。</small>
+</div>
+<div class="src">
+  <a href="https://simonwillison.net/2025/Oct/16/claude-skills/" target="_blank">Simon Willison — Claude Skills（2025）</a>
+  <small>支撑论断：Skill 的最小形态就是带 frontmatter 的 Markdown；"用自然语言写软件"的类比（§4）。</small>
+</div>
+
+<p class="muted" style="margin-top:3em; border-top:1px solid var(--line); padding-top:12px;">
+  本页由 WorkBuddy 项目级 Skill「concept-learning-kit」生成初稿，经本人逐节核查来源、改写个人解释后定稿。生成时间：2026-09-06。
+</p>
+</body>
+</html>

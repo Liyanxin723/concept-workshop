@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>概念学习：大模型的上下文（Context）</title>
+<style>
+  :root { --ink:#1f2937; --muted:#6b7280; --accent:#1d4ed8; --card:#eff6ff; --line:#93c5fd; --bg:#fafcff; }
+  * { box-sizing: border-box; }
+  body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color: var(--ink); background: var(--bg); max-width: 860px; margin: 0 auto; padding: 32px 24px 80px; line-height: 1.75; }
+  h1 { font-size: 1.9em; border-bottom: 3px solid var(--line); padding-bottom: 12px; }
+  h2 { font-size: 1.35em; color: var(--accent); margin-top: 2em; border-left: 5px solid var(--line); padding-left: 10px; }
+  .quote { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 20px; font-size: 1.05em; }
+  .muted { color: var(--muted); }
+  .tag { display: inline-block; background: var(--line); color:#1e3a8a; border-radius: 999px; padding: 1px 12px; font-size: .8em; margin-left: 6px; vertical-align: middle; }
+  ol li, ul li { margin: 6px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+  th, td { border: 1px solid #bfdbfe; padding: 8px 12px; text-align: left; }
+  th { background: var(--card); }
+  .diagram { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin: 14px 0; text-align: center; }
+  .ctx { background:#fff; border: 2px solid var(--accent); border-radius: 10px; padding: 6px 12px; display:inline-block; margin:2px; font-size:.9em; }
+  details { background: var(--card); border: 1px dashed var(--line); border-radius: 8px; padding: 10px 16px; margin: 8px 0; }
+  .src small { color: var(--muted); display: block; }
+  .src { margin: 10px 0; }
+  code { background:#dbeafe; padding: 1px 6px; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<h1>大模型的上下文（Context）<span class="tag">技术概念</span></h1>
+
+<!-- 1 一句话个人解释 -->
+<div class="quote">
+  <strong>一句话个人解释：</strong>上下文是模型在生成回复那一刻"能看见的全部信息"——系统提示、对话历史、上传的文件、工具返回的结果——装在一个容量有限的窗口里。模型没有长期记忆，它每次回答都只基于这个窗口；窗口满了，旧内容就会被挤出或裁剪，这就是一切"AI 忘事"现象的根源。
+</div>
+
+<!-- 2 学习目标 -->
+<h2>学习目标</h2>
+<ol>
+  <li>能说出上下文窗口里通常装着哪几类内容，以及它们的排列顺序；</li>
+  <li>能解释"token"与上下文长度上限的关系，并估算一段中文大约占多少 token；</li>
+  <li>能复述"中间信息容易被忽略"现象，并给出至少两种应对策略；</li>
+  <li>能解释上下文与 Agent 工作的关系：为什么 Agent 每一步都要"写回上下文"。</li>
+</ol>
+
+<!-- 3 核心问题 -->
+<h2>核心问题</h2>
+<ul>
+  <li>Q1：模型回答时"看得到"什么、"看不到"什么？（→ §4）</li>
+  <li>Q2：上下文窗口装满了会发生什么？（→ §5）</li>
+  <li>Q3：为什么塞进去的信息模型未必用得上？（→ §5）</li>
+  <li>Q4：上下文是如何影响 Agent 工作质量的？（→ §6，另见 <a href="agent.html">agent.html</a>）</li>
+</ul>
+
+<!-- 4 概念定义与边界 -->
+<h2>概念定义与边界</h2>
+<p><strong>是什么：</strong>上下文（context）指模型在单次推理中可用的全部输入信息。以 Anthropic 文档的说法，上下文窗口通常包含：系统提示（设定角色与规则）、用户消息与对话历史、附加的文档或图片、工具定义与工具调用结果等。窗口以 token 计量（中文约 1 字 ≈ 1–2 个 token，英文约 0.75 词 ≈ 1 token），不同模型的窗口从几万到上百万 token 不等。</p>
+<p><strong>不是什么：</strong></p>
+<ul>
+  <li>不是模型的"记忆"——模型参数在推理时是固定的，两次对话之间它不会记住任何东西，除非把上一轮内容重新放进窗口；</li>
+  <li>不是"越大越好"的免费资源——窗口越大，成本越高、延迟越长，而且塞太满反而降低质量；</li>
+  <li>不等于知识库——放不进窗口的海量知识要靠检索（RAG）按需取用。</li>
+</ul>
+
+<!-- 5 核心机制 -->
+<h2>核心机制或组成</h2>
+<div class="diagram">
+  <div style="max-width:560px; margin:0 auto; text-align:left;">
+    <p style="margin:4px 0 8px;"><strong>📦 上下文窗口（容量有限，以 token 计）</strong></p>
+    <span class="ctx">⚙️ 系统提示（规则/角色）</span>
+    <span class="ctx">🗂️ 附加文件 / 检索结果</span>
+    <span class="ctx">🛠️ 工具定义</span>
+    <span class="ctx">💬 对话历史（最早）</span>
+    <span class="ctx">🗨️ 当前提问（最近）</span>
+    <p class="muted" style="margin:8px 0 0;">越靠后（右）的内容离生成点越近、越容易被注意到；窗口满时，通常裁剪最早的旧内容。</p>
+  </div>
+</div>
+<ol>
+  <li><strong>无状态 + 每次重放</strong>：模型本身无记忆。所谓"多轮对话"，是应用层把历史消息拼回输入，模型每次都重新读一遍全文；</li>
+  <li><strong>token 计量与上限</strong>：输入 + 输出共同占用窗口。超出上限时请求被拒，或由应用层执行裁剪、摘要、压缩；</li>
+  <li><strong>位置敏感（中间盲区）</strong>：论文《Lost in the Middle》通过实验发现，关键信息放在上下文开头或结尾时模型表现最好，埋在中间时召回率明显下降——长文档场景要把重点前置或收尾；</li>
+  <li><strong>注意力稀释</strong>：窗口里无关内容越多，模型越容易被干扰（幻觉、跑题）。"上下文工程"的核心就是把最相关、最必要的内容放进去；</li>
+  <li><strong>与外部记忆的分工</strong>：放不进窗口的知识用 RAG 检索取回；跨会话要记住的事实写入外部存储，需要时再注入窗口。</li>
+</ol>
+
+<!-- 6 应用案例 -->
+<h2>应用案例：Agent 的多步任务为什么"越走越糊"</h2>
+<p><strong>场景</strong>：一个 Agent 帮我做一个 10 步的调研任务（对应 <a href="agent.html">agent.html</a> 的整理会议记录案例）。</p>
+<p><strong>走一遍流程</strong>：</p>
+<ol>
+  <li>第 1–3 步：每步的工具结果写回上下文，窗口还很空，模型决策准确；</li>
+  <li>第 5 步开始：早期抓取的网页全文占据大量 token，"最初的任务目标"已被挤到窗口很靠前的位置；</li>
+  <li>第 8 步：模型开始重复抓取已经看过的内容——因为任务要求已经淡出它的"视野"（位置敏感现象）；</li>
+  <li>修复方法：应用层在每轮压缩旧观察（只留摘要）、把原始目标常驻在系统提示里、限制单次抓取的全文长度。修完后 Agent 不再跑偏。</li>
+</ol>
+<p><strong>概念如何发挥作用</strong>：Agent 的"自主决策"完全发生在上下文之上。上下文里少了目标，Agent 就丢目标；塞了太多噪声，Agent 就选错工具。理解上下文 = 理解 Agent 为什么会出错、怎么修。</p>
+
+<!-- 7 易混淆问题与使用边界 -->
+<h2>易混淆问题与使用边界</h2>
+<table>
+  <tr><th>易混淆对</th><th>区别标准</th></tr>
+  <tr><td>上下文 vs. 记忆（Memory）</td><td>上下文是单次推理的"工作台"，会话结束即消失；记忆是跨会话持久化的信息，必须落在外部存储，用的时候才注入窗口。</td></tr>
+  <tr><td>上下文窗口 vs. 知识库 / RAG</td><td>窗口是模型当场能"看"的；知识库在模型之外，靠检索挑出最相关片段放进窗口。RAG 是给窗口"喂料"的手段。</td></tr>
+  <tr><td>上下文长度 vs. 上下文质量</td><td>长度是容量上限；质量是内容的相关度。实验表明塞满无关内容不如精选少量高相关内容。</td></tr>
+</table>
+<p><strong>使用边界（我的判断标准）</strong>：</p>
+<ul>
+  <li>关键指令放系统提示或对话末端，别埋在长文中间；</li>
+  <li>长文档优先摘要/检索，不要整篇塞窗口；</li>
+  <li>多轮长任务要有主动的压缩与"重述目标"机制，不能指望模型自己记得；</li>
+  <li>涉及隐私的敏感信息：一旦进入上下文就会随请求发送给模型服务方，发送前要脱敏。</li>
+</ul>
+
+<!-- 8 自测题 -->
+<h2>自测题</h2>
+<details open><summary><strong>1.（简答）</strong>为什么说"模型没有记忆，只有上下文"？跨会话记住用户偏好是怎么实现的？</summary>
+要点提示：无状态 + 每次重放；记忆是外部存储 + 按需注入窗口。</details>
+<details open><summary><strong>2.（辨析）</strong>"上下文窗口 200K token，所以我可以把 100 份文档全放进去让它自己找"——问题出在哪？</summary>
+要点提示：位置敏感与注意力稀释；成本；应改用 RAG 精选片段。</details>
+<details open><summary><strong>3.（简答）</strong>Agent 执行长任务时为什么要"压缩旧观察、常驻任务目标"？</summary>
+要点提示：窗口容量有限 + 中间信息易被忽略（Lost in the Middle）。</details>
+<details open><summary><strong>4.（估算）</strong>一篇 3000 字的中文文档大约占多少 token？会不会挤占窗口？</summary>
+要点提示：中文约 1 字 ≈ 1–2 token，即约 3000–6000 token，长对话中占比可观。</details>
+
+<!-- 9 参考来源 -->
+<h2>参考来源</h2>
+<div class="src">
+  <a href="https://docs.claude.com/en/docs/build-with-claude/context-windows" target="_blank">Anthropic Docs — Context Windows</a>
+  <small>支撑论断：上下文窗口的组成（系统提示/历史/文件/工具结果，§4）、token 计量（§4、自测 4）。</small>
+</div>
+<div class="src">
+  <a href="https://arxiv.org/abs/2307.03172" target="_blank">Liu et al. — Lost in the Middle: How Language Models Use Long Contexts（2023）</a>
+  <small>支撑论断：关键信息位于上下文中间时性能下降（§5.3、§7）。</small>
+</div>
+<div class="src">
+  <a href="https://docs.claude.com/en/docs/build-with-claude/messages" target="_blank">Anthropic Docs — Messages API（无状态消息接口）</a>
+  <small>支撑论断：API 无状态，多轮对话由应用层把历史消息拼回输入实现（§5.1）。</small>
+</div>
+<div class="src">
+  <a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank">Anthropic Engineering — Effective context engineering for AI agents（2025）</a>
+  <small>支撑论断：Agent 长任务需要上下文压缩与管理策略（§6、§7）。</small>
+</div>
+
+<p class="muted" style="margin-top:3em; border-top:1px solid var(--line); padding-top:12px;">
+  本页由 WorkBuddy 项目级 Skill「concept-learning-kit」生成初稿，经本人逐节核查来源、改写个人解释后定稿。生成时间：2026-09-06。
+</p>
+</body>
+</html>
